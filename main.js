@@ -43,13 +43,12 @@ function createWindow() {
 
   // Built as a properly-encoded file:// URL rather than via loadFile()
   // directly — the install folder name ("Pomology Business Manager")
-  // contains spaces, which loadFile()'s simpler path handling can
-  // mishandle. url.format() correctly percent-encodes the whole path.
-  const indexUrl = url.format({
-    pathname: path.join(__dirname, 'index.html'),
-    protocol: 'file:',
-    slashes: true,
-  });
+  // contains spaces, which simpler path-to-URL approaches can mishandle.
+  // pathToFileURL is built specifically for this conversion — it correctly
+  // turns a real filesystem path (Windows backslashes, drive letters,
+  // spaces, all of it) into a properly-formed, correctly-encoded file://
+  // URL.
+  const indexUrl = url.pathToFileURL(path.join(__dirname, 'index.html')).toString();
   win.loadURL(indexUrl).catch(err => {
     dialog.showErrorBox('loadURL failed', String(err) + '\nAttempted URL: ' + indexUrl);
   });
