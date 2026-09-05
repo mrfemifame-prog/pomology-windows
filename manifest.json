@@ -1,0 +1,25 @@
+{
+  "id": "/",
+  "name": "Pomology Business Manager",
+  "short_name": "Pomology",
+  "description": "Invoices, receipts, inventory, and customer records for Pomology and Agro Services Farm Ltd.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F7F3EA",
+  "theme_color": "#1B5E20",
+  "orientation": "any",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    { "src": "screenshots/desktop-summary.png", "sizes": "1280x800", "type": "image/png", "form_factor": "wide", "label": "Business summary and reports" },
+    { "src": "screenshots/desktop-invoice.png", "sizes": "1280x800", "type": "image/png", "form_factor": "wide", "label": "Invoice with automatic totals" },
+    { "src": "screenshots/mobile-summary.png", "sizes": "390x844", "type": "image/png", "form_factor": "narrow", "label": "Summary on mobile" }
+  ]
+}

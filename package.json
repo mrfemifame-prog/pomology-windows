@@ -1,0 +1,38 @@
+{
+  "name": "pomology-business-manager",
+  "version": "1.0.0",
+  "description": "Pomology Business Manager - fully self-contained offline-first business app",
+  "author": "Pomology and Agro Services Farm Ltd",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build-win": "electron-builder --win --publish=never"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.pomology.businessmanager",
+    "productName": "Pomology Business Manager",
+    "asar": false,
+    "win": {
+      "target": "nsis",
+      "icon": "icons/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "manifest.json",
+      "service-worker.js",
+      "icons/**/*"
+    ]
+  }
+}
