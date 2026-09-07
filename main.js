@@ -2,10 +2,27 @@
 // directly from the files bundled inside the installer. Nothing here
 // fetches anything over the network; the only network calls the app
 // itself ever makes are its own quiet background backup to Supabase.
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const url = require('url');
+
+// Loading the app over file:// proved unreliable on Windows: the first
+// launch would fail with ERR_FAILED while a second instance opened on top
+// of it worked, which points at Electron's own disk cache being locked or
+// half-written rather than anything wrong with the files themselves.
+// Serving the app through a custom internal protocol avoids the file://
+// code path (and its cache) altogether, so that whole class of problem
+// can't occur. Nothing here touches the network — "app://" is served
+// straight off the local disk, inside the installed folder.
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+]);
+
+// The disk cache is also disabled outright — this app has no need for it
+// (every file it loads is local and tiny), and a corrupt or locked cache
+// was the most likely cause of the original failure.
+app.commandLine.appendSwitch('disable-http-cache');
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -23,39 +40,36 @@ function createWindow() {
   });
   win.setMenuBarVisibility(false);
 
-  // TEMPORARY DIAGNOSTIC BUILD: opens the developer console automatically
-  // and surfaces any load/crash errors directly in the window, so we can
-  // see exactly what's happening on a machine where the app is showing a
-  // blank page instead of loading normally. This will be removed once
-  // the underlying issue is found — it's not meant to stay in the app
-  // long-term.
-  win.webContents.openDevTools({ mode: 'bottom' });
-
+  // TEMPORARY DIAGNOSTIC: still reports a failure clearly rather than
+  // leaving a blank window with no explanation. Removed once confirmed
+  // working.
   win.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
     dialog.showErrorBox('Failed to load the app', `Error ${errorCode}: ${errorDescription}\nURL: ${validatedURL}`);
   });
   win.webContents.on('render-process-gone', (event, details) => {
     dialog.showErrorBox('The app crashed', `Reason: ${details.reason}`);
   });
-  win.webContents.on('console-message', (event, level, message, line, sourceId) => {
-    if (level >= 2) console.log(`[renderer ${level}] ${message} (${sourceId}:${line})`);
-  });
 
-  // Built as a properly-encoded file:// URL rather than via loadFile()
-  // directly — the install folder name ("Pomology Business Manager")
-  // contains spaces, which simpler path-to-URL approaches can mishandle.
-  // pathToFileURL is built specifically for this conversion — it correctly
-  // turns a real filesystem path (Windows backslashes, drive letters,
-  // spaces, all of it) into a properly-formed, correctly-encoded file://
-  // URL.
-  const indexUrl = url.pathToFileURL(path.join(__dirname, 'index.html')).toString();
-  win.loadURL(indexUrl).catch(err => {
-    dialog.showErrorBox('loadURL failed', String(err) + '\nAttempted URL: ' + indexUrl);
+  win.loadURL('app://bundle/index.html').catch(err => {
+    dialog.showErrorBox('loadURL failed', String(err));
   });
   return win;
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  // Maps every app:// request to the matching file inside the installed
+  // folder, refusing anything that tries to escape that folder.
+  protocol.handle('app', (request) => {
+    const requestPath = new URL(request.url).pathname;
+    const safePath = path.normalize(decodeURIComponent(requestPath)).replace(/^(\.\.[/\\])+/, '');
+    const fullPath = path.join(__dirname, safePath);
+    if (!fullPath.startsWith(__dirname)) {
+      return new Response('Not found', { status: 404 });
+    }
+    return net.fetch(url.pathToFileURL(fullPath).toString());
+  });
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
