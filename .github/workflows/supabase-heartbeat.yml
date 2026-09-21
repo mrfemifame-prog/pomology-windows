@@ -1,0 +1,35 @@
+name: Supabase Activity Heartbeat
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/supabase-heartbeat.yml"
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Keep Supabase project active
+        env:
+          SUPABASE_URL: https://utrcukeyximksoengxgj.supabase.co
+          SUPABASE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+
+        run: |
+          set -euo pipefail
+
+          test -n "$SUPABASE_KEY"
+
+          curl --fail-with-body --silent --show-error \
+            --request PATCH \
+            --url "$SUPABASE_URL/rest/v1/heartbeat?id=eq.1" \
+            --header "apikey: $SUPABASE_KEY" \
+            --header "Authorization: Bearer $SUPABASE_KEY" \
+            --header "Content-Type: application/json" \
+            --header "Prefer: return=minimal" \
+            --data "{\"pinged_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+
+          echo "Supabase heartbeat completed successfully."
