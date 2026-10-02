@@ -40,6 +40,20 @@ function createWindow() {
   });
   win.setMenuBarVisibility(false);
 
+  // Inject a Business Map launcher into the existing manager UI.
+  win.webContents.on('did-finish-load', () => {
+    if (win.webContents.getURL().endsWith('/index.html')) {
+      win.webContents.executeJavaScript(\`(() => {
+        if (document.getElementById('businessMapLauncher')) return;
+        const b = document.createElement('button');
+        b.id='businessMapLauncher'; b.textContent='Business Opportunity Map';
+        Object.assign(b.style,{position:'fixed',right:'22px',bottom:'22px',zIndex:99999,background:'#1B5E20',color:'#fff',border:'0',borderRadius:'10px',padding:'11px 15px',fontWeight:'700',cursor:'pointer',boxShadow:'0 5px 18px rgba(0,0,0,.18)'});
+        b.onclick=()=>{ window.location.href='app://bundle/business-map.html'; };
+        document.body.appendChild(b);
+      })()\`);
+    }
+  });
+
   // TEMPORARY DIAGNOSTIC: still reports a failure clearly rather than
   // leaving a blank window with no explanation. Removed once confirmed
   // working.
