@@ -32,7 +32,8 @@
       "index.html",
       "manifest.json",
       "service-worker.js",
-      "icons/**/*"
+      "icons/**/*",
+      "business-map.html"
     ]
   }
 }
