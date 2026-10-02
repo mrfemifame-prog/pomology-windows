@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Business Opportunity Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+html,body,#app{height:100%;margin:0}body{font-family:Segoe UI,Arial,sans-serif;color:#172018;background:#fff}
+#map{position:absolute;inset:0}.top{position:absolute;z-index:1000;top:14px;left:14px;right:14px;display:flex;gap:10px;align-items:center;pointer-events:none}
+.panel,.toolbar{background:#fff;border:1px solid #ddd;border-radius:12px;box-shadow:0 5px 24px #0002;padding:10px;pointer-events:auto}
+.panel{width:310px;max-width:calc(100vw - 28px)}h1{font-size:16px;margin:0 0 4px}.muted{font-size:12px;color:#68706a}
+.controls{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}button,select,input,textarea{font:inherit}button{border:0;border-radius:8px;padding:8px 10px;cursor:pointer;background:#1b5e20;color:#fff;font-weight:700}button.secondary{background:#f1f3ef;color:#243027;border:1px solid #d9ddd6}
+#layers{margin-top:10px;max-height:220px;overflow:auto}.layer{display:flex;align-items:center;gap:7px;padding:6px 0;font-size:12px}.dot{width:10px;height:10px;border-radius:50%;background:#2e7d32;display:inline-block}
+.modal{position:fixed;z-index:2000;inset:0;background:#0007;display:none;align-items:center;justify-content:center}.card{background:#fff;border-radius:16px;padding:20px;width:min(440px,92vw);box-shadow:0 20px 60px #0004}.card h2{margin:0 0 14px;font-size:18px}.field{margin:10px 0}.field label{display:block;font-size:11px;font-weight:700;color:#586158;margin-bottom:5px}.field input,.field select,.field textarea{width:100%;padding:9px;border:1px solid #d7ddd6;border-radius:8px;box-sizing:border-box}.field textarea{min-height:70px}.row{display:flex;gap:8px}.row>*{flex:1}.err{color:#b3261e;font-size:12px;margin-top:8px}.feature-popup b{font-size:14px}.logout{margin-left:auto}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div class="top">
+  <div class="panel">
+    <h1>Business Opportunity Map</h1>
+    <div class="muted" id="userText">Sign in to load your private map.</div>
+    <div class="controls" id="actions" style="display:none">
+      <button onclick="openFeatureForm()">Add opportunity</button>
+      <button class="secondary" onclick="location.reload()">Refresh</button>
+      <button class="secondary" onclick="signOut()">Sign out</button>
+    </div>
+    <div id="layers"></div>
+  </div>
+</div>
+<div class="modal" id="loginModal"><div class="card">
+  <h2>Private map sign-in</h2>
+  <div class="muted">Use the same Supabase account used by your business system.</div>
+  <div class="field"><label>Email</label><input id="email" type="email" autocomplete="username"></div>
+  <div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password"></div>
+  <button onclick="signIn()">Sign in</button><div class="err" id="loginErr"></div>
+</div></div>
+<div class="modal" id="featureModal"><div class="card">
+  <h2 id="formTitle">Save map feature</h2>
+  <div class="field"><label>Name</label><input id="fName" placeholder="e.g. Oyo agro-processing opportunity"></div>
+  <div class="row">
+    <div class="field"><label>Layer</label><select id="fLayer"></select></div>
+    <div class="field"><label>Type</label><select id="fType"><option>point</option><option>line</option><option>polygon</option></select></div>
+  </div>
+  <div class="row">
+    <div class="field"><label>Status</label><select id="fStatus"><option>research</option><option>identified</option><option>active</option><option>monitoring</option><option>completed</option><option>archived</option></select></div>
+    <div class="field"><label>Priority</label><select id="fPriority"><option value="">—</option><option>low</option><option>medium</option><option>high</option><option>critical</option></select></div>
+  </div>
+  <div class="row">
+    <div class="field"><label>Opportunity type</label><input id="fOpp" placeholder="market, property, supply..."></div>
+    <div class="field"><label>Sector</label><input id="fSector" placeholder="agriculture, construction..."></div>
+  </div>
+  <div class="field"><label>Notes</label><textarea id="fNotes"></textarea></div>
+  <div class="controls"><button onclick="saveFeature()">Save</button><button class="secondary" onclick="closeFeatureForm()">Cancel</button></div>
+  <div class="err" id="formErr"></div>
+</div></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+<script>
+const SUPABASE_URL='https://utrcukeyximksoengxgj.supabase.co';
+const SUPABASE_KEY='sb_publishable_X_V9vtTvkmvHanatqSmXWw_3murqeBU';
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const map=L.map('map',{zoomControl:true}).setView([9.2,8.1],6);
+L.tileLayer('https://wi.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community'}).addTo(map);
+const drawn=L.featureGroup().addTo(map);
+const layerGroups={};let workspace=null,layers=[],pendingLayer=null;
+new L.Control.Draw({edit:{featureGroup:drawn,remove:true},draw:{marker:true,polyline:true,polygon:true,rectangle:true,circle:false,circlemarker:false}}).addTo(map);
+map.on(L.Draw.Event.CREATED,e=>{pendingLayer=e.layer;openFeatureForm(e.layer);});
+
+function closeFeatureForm(){document.getElementById('featureModal').style.display='none';pendingLayer=null}
+function openFeatureForm(layer){if(!workspace)return;document.getElementById('featureModal').style.display='flex';document.getElementById('formErr').textContent='';document.getElementById('fName').value='';document.getElementById('fNotes').value='';document.getElementById('fOpp').value='';document.getElementById('fSector').value='';document.getElementById('fStatus').value='research';document.getElementById('fPriority').value='';document.getElementById('fLayer').innerHTML=layers.map(x=>'<option value="'+x.id+'">'+x.name+'</option>').join('');if(layer)document.getElementById('fType').value=layer instanceof L.Marker?'point':layer instanceof L.Polygon?'polygon':'line'}
+async function signIn(){const e=email.value.trim(),p=password.value;loginErr.textContent='';const {error}=await sb.auth.signInWithPassword({email:e,password:p});if(error)loginErr.textContent=error.message}
+async function signOut(){await sb.auth.signOut();location.reload()}
+async function ensureWorkspace(user){let {data,error}=await sb.from('map_workspaces').select('*').order('created_at').limit(1);if(error)throw error;if(!data.length){const r=await sb.from('map_workspaces').insert({owner_id:user.id,name:'Business Opportunity Map',description:'Private geographic intelligence workspace'}).select().single();if(r.error)throw r.error;workspace=r.data}else workspace=data[0]}
+async function ensureLayers(){const {data,error}=await sb.from('map_layers').select('*').eq('workspace_id',workspace.id).order('display_order');if(error)throw error;layers=data;if(!layers.length){const defs=[['Current Operations','operations'],['Business Opportunities','opportunities'],['Markets','markets'],['Competitors','competitors'],['Suppliers','suppliers'],['Infrastructure','infrastructure'],['Agriculture','agriculture'],['Properties','properties'],['Transport','transport']];const ins=defs.map((x,i)=>({workspace_id:workspace.id,name:x[0],layer_type:x[1],display_order:i}));const r=await sb.from('map_layers').insert(ins).select();if(r.error)throw r.error;layers=r.data}}
+function renderLayers(){document.getElementById('layers').innerHTML='<div class="muted">Layers</div>'+layers.map(l=>'<label class="layer"><input type="checkbox" checked onchange="toggleLayer(\''+l.id+'\',this.checked)"> <span class="dot"></span>'+l.name+'</label>').join('');document.getElementById('fLayer').innerHTML=layers.map(l=>'<option value="'+l.id+'">'+l.name+'</option>').join('')}
+function toggleLayer(id,on){const g=layerGroups[id];if(g)on?g.addTo(map):map.removeLayer(g)}
+async function loadFeatures(){drawn.clearLayers();layers.forEach(l=>layerGroups[l.id]=L.featureGroup().addTo(map));const {data,error}=await sb.rpc('map_features_for_workspace',{p_workspace_id:workspace.id});if(error)throw error;(data||[]).forEach(f=>{const geo=typeof f.geometry==='string'?JSON.parse(f.geometry):f.geometry;const l=L.geoJSON(geo,{onEachFeature:(_,ly)=>{ly.bindPopup('<div class="feature-popup"><b>'+esc(f.name)+'</b><br>'+esc(f.status)+' · '+esc(f.priority||'no priority')+'<br>'+esc(f.sector||'')+'<br>'+esc(f.notes||'')+'</div>')}});const g=layerGroups[f.layer_id]||drawn;g.addLayer(l)})}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function saveFeature(){if(!pendingLayer)return;const name=fName.value.trim();if(!name){formErr.textContent='Name is required.';return}const gj=pendingLayer.toGeoJSON().geometry;const r=await sb.rpc('create_map_feature',{p_workspace_id:workspace.id,p_layer_id:fLayer.value,p_name:name,p_feature_type:fType.value,p_geojson:gj,p_status:fStatus.value,p_opportunity_type:fOpp.value||null,p_sector:fSector.value||null,p_priority:fPriority.value||null,p_notes:fNotes.value||null,p_metadata:{}});if(r.error){formErr.textContent=r.error.message;return}drawn.removeLayer(pendingLayer);closeFeatureForm();await loadFeatures()}
+async function init(){const {data}=await sb.auth.getSession();if(!data.session){document.getElementById('loginModal').style.display='flex';return}document.getElementById('userText').textContent='Private workspace · '+(data.session.user.email||'signed in');document.getElementById('actions').style.display='flex';try{await ensureWorkspace(data.session.user);await ensureLayers();renderLayers();await loadFeatures()}catch(e){document.getElementById('userText').textContent='Map setup error: '+e.message}}
+sb.auth.onAuthStateChange((_event,session)=>{if(session){document.getElementById('loginModal').style.display='none';init()}});
+init();
+</script>
+</body></html>
